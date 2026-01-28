@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deku Ramen - Kitchen Display</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="header-title">DEKU RAMEN</div>
+    <nav>
+      <a href="/waiter-app.html">Waiter App</a>
+      <a href="/index.html">Inicio</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Kitchen Display</h2>
+      <p class="notice">Visualiza las órdenes entrantes y marca cuando estén listas.</p>
+    </div>
+    <div id="orders" class="grid"></div>
+  </main>
+
+  <script>
+    const socket = new WebSocket(`ws://${location.host}/ws`);
+    const ordersContainer = document.getElementById('orders');
+
+    function statusLabel(status) {
+      const map = {
+        pending: 'Pendiente',
+        ready: 'Listo',
+        delivered: 'Entregado'
+      };
+      return map[status] || status;
+    }
+
+    function renderOrders(orders) {
+      if (!orders.length) {
+        ordersContainer.innerHTML = '<div class="card">Sin órdenes por ahora.</div>';
+        return;
+      }
+
+      ordersContainer.innerHTML = orders.map((order) => {
+        const items = order.items.map((item) => `<li>${item}</li>`).join('');
+        const readyDisabled = order.status === 'ready' || order.status === 'delivered';
+        return `
+          <div class="card">
+            <strong>Orden #${order.id}</strong>
+            <div>Mesa: ${order.table}</div>
+            <div class="status ${order.status}">${statusLabel(order.status)}</div>
+            <ul class="order-items">${items}</ul>
+            <div class="inline-actions">
+              <button ${readyDisabled ? 'disabled' : ''} data-action="ready" data-id="${order.id}">
+                Marcar listo
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'get_state' }));
+    });
+
+    socket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'state') {
+        renderOrders(data.orders);
+      }
+    });
+
+    ordersContainer.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const action = button.dataset.action;
+      const id = Number(button.dataset.id);
+      if (action === 'ready') {
+        socket.send(JSON.stringify({ type: 'update_status', id, status: 'ready' }));
+      }
+    });
+  </script>
+</body>
+</html>
