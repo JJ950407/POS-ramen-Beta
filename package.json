@@ -1,0 +1,10 @@
+{
+  "name": "deku-ramen-pos",
+  "version": "1.0.0",
+  "description": "POS para Deku Ramen con backend y WebSocket sin dependencias externas.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}

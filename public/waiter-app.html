@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deku Ramen - Waiter App</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="header-title">DEKU RAMEN</div>
+    <nav>
+      <a href="/kitchen-display.html">Kitchen Display</a>
+      <a href="/index.html">Inicio</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Waiter App</h2>
+      <p class="notice">Registra nuevas órdenes y revisa su estado.</p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Nueva orden</h3>
+        <form id="order-form">
+          <label for="table">Mesa</label>
+          <input id="table" name="table" placeholder="Mesa 12" required />
+
+          <label for="items">Items (separados por coma)</label>
+          <textarea id="items" name="items" rows="4" placeholder="Ramen shoyu, Gyozas" required></textarea>
+
+          <button type="submit">Enviar a cocina</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Órdenes activas</h3>
+        <div id="orders"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const socket = new WebSocket(`ws://${location.host}/ws`);
+    const ordersContainer = document.getElementById('orders');
+    const form = document.getElementById('order-form');
+    const tableInput = document.getElementById('table');
+    const itemsInput = document.getElementById('items');
+
+    function statusLabel(status) {
+      const map = {
+        pending: 'Pendiente',
+        ready: 'Listo',
+        delivered: 'Entregado'
+      };
+      return map[status] || status;
+    }
+
+    function renderOrders(orders) {
+      if (!orders.length) {
+        ordersContainer.innerHTML = '<p class="notice">Sin órdenes activas.</p>';
+        return;
+      }
+
+      ordersContainer.innerHTML = orders.map((order) => {
+        const items = order.items.map((item) => `<li>${item}</li>`).join('');
+        return `
+          <div class="card">
+            <strong>Orden #${order.id}</strong>
+            <div>Mesa: ${order.table}</div>
+            <div class="status ${order.status}">${statusLabel(order.status)}</div>
+            <ul class="order-items">${items}</ul>
+            <div class="inline-actions">
+              <button class="secondary" data-action="delivered" data-id="${order.id}">
+                Marcar entregado
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'get_state' }));
+    });
+
+    socket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'state') {
+        renderOrders(data.orders);
+      }
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const table = tableInput.value.trim();
+      const items = itemsInput.value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      socket.send(JSON.stringify({ type: 'new_order', table, items }));
+      form.reset();
+    });
+
+    ordersContainer.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.action === 'delivered') {
+        const id = Number(button.dataset.id);
+        socket.send(JSON.stringify({ type: 'update_status', id, status: 'delivered' }));
+      }
+    });
+  </script>
+</body>
+</html>
